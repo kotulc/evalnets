@@ -9,7 +9,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('batch_size', 50, 'Number of instances per batch.')
-flags.DEFINE_integer('max_steps', 5000, 'Number of steps to run trainer.')
+flags.DEFINE_integer('max_steps', 30000, 'Number of steps to run trainer.')
 flags.DEFINE_float('learning_rate', 1e-4, 'Initial learning rate.')
 flags.DEFINE_integer('conv_fmaps', 16, 'Number of feature maps (channels).')
 flags.DEFINE_integer('fc1_nodes', 500, 'Number of units in hidden layer 2.')
@@ -30,13 +30,12 @@ def bias_variable(shape):
 
 # Return a convolution of x and W with 2x2 stride
 def conv2d(x, W):
-    return tf.nn.conv2d(x, W, strides=[1, 2, 2, 1],
-                        padding='SAME', name='conv2d')
+    return tf.nn.conv2d(x, W, strides=[1, 2, 2, 1], padding='SAME')
 
 # Return a 2x2 max pool layer with 2x2 stride
 def max_pool_2x2(x):
-    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
-                          padding='SAME', name='mpool')
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
+                         strides=[1, 2, 2, 1], padding='SAME')
 
 # fill_feed_dict from fully_connected_feed.py
 def fill_feed_dict(data_sets, x, y_, keep_tuple):
@@ -55,32 +54,31 @@ def main(_):
     # Input and label placeholders
     x = tf.placeholder('float', shape=[None, 784], name='x-input')
     y_ = tf.placeholder('float', shape=[None, 10], name='y-input')
-    keep_prob = tf.placeholder('float', name='kprob')
+    keep_prob = tf.placeholder('float', name='k-prob')
+
 
     # Convolutional layer - variables
     with tf.name_scope('conv'):
         W_conv = weight_variable([4, 4, 1, FLAGS.conv_fmaps])
-        b_conv = bias_variable([16])
+        b_conv = bias_variable([FLAGS.conv_fmaps])
 
         # Reshape and convolve
-        x_image = tf.reshape(x, [-1, 28, 28, 1], name='reshape')
-        h_conv = tf.nn.relu(conv2d(x_image, W_conv) + b_conv, name='relu')
-        #h_pool1 = max_pool_2x2(h_conv)
+        x_image = tf.reshape(x, [-1, 28, 28, 1])
+        h_conv = tf.nn.relu(conv2d(x_image, W_conv) + b_conv)
+        h_pool = max_pool_2x2(h_conv)
 
 
     # Fully connected layer1 - variables
     with tf.name_scope('fc_1'):
-        W_fc1 = weight_variable([14 * 14 * FLAGS.conv_fmaps, FLAGS.fc1_nodes])
+        W_fc1 = weight_variable([7 * 7 * FLAGS.conv_fmaps, FLAGS.fc1_nodes])
         b_fc1 = bias_variable([FLAGS.fc1_nodes])
 
         # Reshape and apply relu
-        #h_pool1_flat = tf.reshape(h_pool1, [-1, 14 * 14 * 16], name='reshape')
-        #h_fc1 = tf.nn.relu(tf.matmul(h_pool1_flat, W_fc1) + b_fc1, name='relu')
-        h_flat = tf.reshape(h_conv, [-1, 14 * 14 * FLAGS.conv_fmaps])
-        h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
-
-        # Apply dropout to output
-        h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob, name='drop')
+        h_pool1_flat = tf.reshape(h_pool, [-1, 7 * 7 * FLAGS.conv_fmaps])
+        h_fc1 = tf.nn.relu(tf.matmul(h_pool1_flat, W_fc1) + b_fc1)
+        # If the max_pool operation is ignored...
+        #h_flat = tf.reshape(h_conv, [-1, 14 * 14 * FLAGS.conv_fmaps])
+        #h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
 
 
     # Fully connected layer2 - variables
@@ -89,10 +87,10 @@ def main(_):
         b_fc2 = bias_variable([FLAGS.fc2_nodes])
 
         # Apply relu
-        h_fc2 = tf.nn.relu(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
+        h_fc2 = tf.nn.relu(tf.matmul(h_fc1, W_fc2) + b_fc2)
 
         # Apply dropout to output
-        h_fc2_drop = tf.nn.dropout(h_fc2, keep_prob, name='drop')
+        h_fc2_drop = tf.nn.dropout(h_fc2, keep_prob)
 
     # Readout layer
     with tf.name_scope('readout'):
