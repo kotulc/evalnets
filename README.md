@@ -1,1 +1,3 @@
-# evalnets
+#Evalnets
+
+Evalnets is a set of TensorFlow scripts used for evaluation of the generalization performance of various neural network layer encodings against the MNIST dataset. This script borrows primarily from tensorflow mnist tutorials found in the tensorflow repository under tensorflow/tensorflow/examples/tutorials/mnist/ including fully_connected_feed.py and utilizes the functionality of input_data.py control_eval_fc2.py generates a graph used to train a network with the conv-fc1-fc2-out architecture. The test performance of the network generated in control_eval_fc2.py is for comparison purposes against networks generated in exp_eval_fc2.py.
