@@ -2,20 +2,21 @@
 import os.path
 import tensorflow as tf
 
-from tensorflow.examples.tutorials.mnist import input_data
-
+#from tensorflow.examples.tutorials.mnist import input_data
+import input_data
 
 # Model parameters as flags
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('batch_size', 50, 'Number of instances per batch.')
-flags.DEFINE_integer('max_steps', 30000, 'Number of steps to run trainer.')
+flags.DEFINE_integer('max_steps', 20000, 'Number of steps to run trainer.')
 flags.DEFINE_float('learning_rate', 1e-4, 'Initial learning rate.')
-flags.DEFINE_integer('conv_fmaps', 16, 'Number of feature maps (channels).')
-flags.DEFINE_integer('fc1_nodes', 500, 'Number of units in hidden layer 2.')
-flags.DEFINE_integer('fc2_nodes', 100, 'Number of units in hidden layer 3.')
+flags.DEFINE_integer('conv_fmaps', 18, 'Number of feature maps (channels).')
+flags.DEFINE_integer('fc1_nodes', 600, 'Number of units in hidden layer 2.')
+flags.DEFINE_integer('fc2_nodes', 200, 'Number of units in hidden layer 3.')
 flags.DEFINE_float('keep_prob', 0.5, 'Output dropout probability.')
-flags.DEFINE_string('train_dir','data','Directory to store training logs')
+flags.DEFINE_string('train_dir','data','Directory to store training logs.')
+flags.DEFINE_integer('target_label', 0, 'Target label for binary one-hot.')
 
 
 # Return a weight variable initialized with the given shape
@@ -23,19 +24,23 @@ def weight_variable(shape):
     initial = tf.truncated_normal(shape, stddev=0.1)
     return tf.Variable(initial, name='weights')
 
+
 # Return a bias variable initialized with the given shape
 def bias_variable(shape):
     initial = tf.constant(0.1, shape=shape)
     return tf.Variable(initial, name='bias')
 
+
 # Return a convolution of x and W with 2x2 stride
 def conv2d(x, W):
     return tf.nn.conv2d(x, W, strides=[1, 2, 2, 1], padding='SAME')
+
 
 # Return a 2x2 max pool layer with 2x2 stride
 def max_pool_2x2(x):
     return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                          strides=[1, 2, 2, 1], padding='SAME')
+
 
 # fill_feed_dict from fully_connected_feed.py
 def fill_feed_dict(data_sets, x, y_, keep_tuple):
@@ -46,14 +51,16 @@ def fill_feed_dict(data_sets, x, y_, keep_tuple):
 
 def main(_):
     # Download data if no local copy exists
-    data_sets = input_data.read_data_sets(FLAGS.train_dir, one_hot=True)
+    data_sets = input_data.read_data_sets(FLAGS.train_dir, one_hot=True,
+                                          target_label=FLAGS.target_label)
 
     # Create the session
     sess = tf.InteractiveSession()
 
     # Input and label placeholders
+    num_classes = data_sets.train.num_classes
     x = tf.placeholder('float', shape=[None, 784], name='x-input')
-    y_ = tf.placeholder('float', shape=[None, 10], name='y-input')
+    y_ = tf.placeholder('float', shape=[None, num_classes], name='y-input')
     keep_prob = tf.placeholder('float', name='k-prob')
 
 
@@ -89,13 +96,13 @@ def main(_):
         # Apply relu
         h_fc2 = tf.nn.relu(tf.matmul(h_fc1, W_fc2) + b_fc2)
 
-        # Apply dropout to output
+        # Apply dropout to fc_2 output
         h_fc2_drop = tf.nn.dropout(h_fc2, keep_prob)
 
     # Readout layer
     with tf.name_scope('readout'):
-        W_out = weight_variable([FLAGS.fc2_nodes, 10])
-        b_out = bias_variable([10])
+        W_out = weight_variable([FLAGS.fc2_nodes, num_classes])
+        b_out = bias_variable([num_classes])
 
         y = tf.nn.softmax(tf.matmul(h_fc2_drop, W_out) + b_out)
 
@@ -138,7 +145,7 @@ def main(_):
     # Train the model and record summaries
     for i in range(FLAGS.max_steps):
         if i%50 == 0:
-            # Generate a new feed dictionary
+            # Generate a new feed dictionary to test training accuracy
             feed_dict = fill_feed_dict(
                     data_sets.train, x, y_, (keep_prob, 1.0))
             # Update the summary collection
@@ -149,12 +156,12 @@ def main(_):
             # Print status update
             print('step %d, training accuracy %g'%(i, train_accuracy))
         else:
-            # Generate a new feed dictionary
+            # Generate a new feed dictionary for the next training batch
             feed_dict = fill_feed_dict(
                     data_sets.train, x, y_, (keep_prob, FLAGS.keep_prob))
             sess.run(train_step, feed_dict=feed_dict)
 
-    print('test accuracy %.3f'%accuracy.eval(feed_dict={
+    print('test accuracy %.4f'%accuracy.eval(feed_dict={
         x: data_sets.test.images, y_: data_sets.test.labels, keep_prob: 1.0}))
 
 if __name__ == '__main__':
