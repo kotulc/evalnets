@@ -1,7 +1,10 @@
 """
-Trains a network with the conv-fc1-fc2-out architecture against the MNIST
-train_data. This network does not perform multinomial classification, but
-instead attempts to identify the target_label class from all other classes.
+Trains a network with the fc1-fc2-out architecture against MNIST train_data
+filtered through an external convolutional layer. Utilizes input_data function
+to read the matlab data file containing the output of this external conv layer.
+
+Note: Structured similary to control_eval_fc2, however, the parameter file_path
+is not set, the network is trained against the original MNIST data instead
 """
 
 import os.path
@@ -22,6 +25,7 @@ flags.DEFINE_integer('fc1_nodes', 600, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('fc2_nodes', 200, 'Number of units in hidden layer 3.')
 flags.DEFINE_integer('target_label', 0, 'Target label for binary one-hot.')
 flags.DEFINE_string('train_dir', 'data', 'Directory to store training logs.')
+flags.DEFINE_string('file_path', 'data/features.m', 'Matlab feature data path')
 
 
 # Return a weight variable initialized with the given shape
@@ -34,11 +38,6 @@ def weight_variable(shape):
 def bias_variable(shape):
     initial = tf.constant(0.1, shape=shape)
     return tf.Variable(initial, name='bias')
-
-
-# Return a convolution of x and W with 2x2 stride
-def conv2d(x, W):
-    return tf.nn.conv2d(x, W, strides=[1, 2, 2, 1], padding='VALID')
 
 
 # Return a 2x2 max pool layer with 2x2 stride
@@ -55,9 +54,17 @@ def fill_feed_dict(data_sets, x, y_, keep_tuple):
 
 
 def main(_):
-    # Download data if no local copy exists
-    data_sets = input_data.read_data_sets(FLAGS.train_dir, one_hot=True,
-                                          target_label=FLAGS.target_label)
+
+    # If the matlab file_path is not set, load raw MNIST data
+    if not FLAGS.file_path:
+        # Download data if no local copy exists
+        data_sets = input_data.read_data_sets(FLAGS.train_dir, one_hot=True,
+                                      target_label=FLAGS.target_label)
+    else:
+        # Read from matlab data file if passed file_path
+        data_sets = input_data.read_mdata_sets(FLAGS.file_path, one_hot=True,
+                                      target_label=FLAGS.target_label)
+
 
     # Create the session
     sess = tf.InteractiveSession()
@@ -70,28 +77,24 @@ def main(_):
     keep_prob = tf.placeholder('float', name='k-prob')
 
 
-    # Convolutional layer
-    with tf.name_scope('conv'):
-        W_conv = weight_variable([4, 4, 1, FLAGS.conv_fmaps])
-        b_conv = bias_variable([FLAGS.conv_fmaps])
-
+    # Input layer - operations
+    #with tf.name_scope('input'):
         # Reshape and convolve
-        x_image = tf.reshape(x, [-1, 28, 28, 1])
-        h_conv = tf.nn.relu(conv2d(x_image, W_conv) + b_conv)
-        #h_pool = max_pool_2x2(h_conv)
+        #x_image = tf.reshape(x, [-1, 14, 14, 1])
+        #h_pool = max_pool_2x2(x_image)
 
 
     # Fully connected layer1
     with tf.name_scope('fc_1'):
-        W_fc1 = weight_variable([13 * 13 * FLAGS.conv_fmaps, FLAGS.fc1_nodes])
+        W_fc1 = weight_variable([num_features, FLAGS.fc1_nodes])
         b_fc1 = bias_variable([FLAGS.fc1_nodes])
 
         # Reshape and apply relu
-        #h_pool1_flat = tf.reshape(h_pool, [-1, 7 * 7 * FLAGS.conv_fmaps])
+        #h_pool1_flat = tf.reshape(h_pool, [-1, num_features])
         #h_fc1 = tf.nn.relu(tf.matmul(h_pool1_flat, W_fc1) + b_fc1)
         # If the max_pool operation is ignored...
-        h_flat = tf.reshape(h_conv, [-1, 13 * 13 * FLAGS.conv_fmaps])
-        h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
+        #h_flat = tf.reshape(h_conv, [-1, 14 * 14 * FLAGS.conv_fmaps])
+        h_fc1 = tf.nn.relu(tf.matmul(x, W_fc1) + b_fc1)
 
 
     # Fully connected layer2
@@ -105,7 +108,6 @@ def main(_):
         # Apply dropout to fc_2 output
         h_fc2_drop = tf.nn.dropout(h_fc2, keep_prob)
 
-
     # Readout layer
     with tf.name_scope('readout'):
         W_out = weight_variable([FLAGS.fc2_nodes, num_classes])
@@ -115,11 +117,9 @@ def main(_):
 
 
     # Add summary ops for tensorboard
-    _ = tf.histogram_summary('W_conv', W_conv)
     _ = tf.histogram_summary('W_fc1', W_fc1)
     _ = tf.histogram_summary('W_fc2', W_fc2)
     _ = tf.histogram_summary('W_out', W_out)
-    _ = tf.histogram_summary('b_conv', b_conv)
     _ = tf.histogram_summary('b_fc1', b_fc1)
     _ = tf.histogram_summary('b_fc2', b_fc2)
     _ = tf.histogram_summary('b_out', b_out)

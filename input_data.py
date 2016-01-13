@@ -13,7 +13,8 @@
 # limitations under the License.
 # ==============================================================================
 
-"""Functions for downloading and reading MNIST data.
+"""
+Functions for downloading and reading MNIST data.
 Modified version of input_data.py from tensorflow MNIST tutorials
 
 Updated functionality:
@@ -21,6 +22,9 @@ Updated functionality:
     which label (0-9) to isolate from all other label classes. Labels in the
     returned object data_sets are now a one-hot encoding of two classes, the
     null class (all labels but the target label), and target class respectively.
+
+    read_mdata_sets has been added to import the training data from a matlab
+    data file.
 """
 from __future__ import absolute_import
 from __future__ import division
@@ -32,6 +36,8 @@ import pdb
 
 
 import numpy
+import scipy.io as sio
+
 from six.moves import urllib
 from six.moves import xrange  # pylint: disable=redefined-builtin
 
@@ -123,13 +129,15 @@ class DataSet(object):
 
       # Convert shape from [num examples, rows, columns, depth]
       # to [num examples, rows*columns] (assuming depth == 1)
-      assert images.shape[3] == 1
-      images = images.reshape(images.shape[0],
-                              images.shape[1] * images.shape[2])
+      if len(images.shape) > 2:
+        assert images.shape[3] == 1
+        images = images.reshape(images.shape[0],
+                                images.shape[1] * images.shape[2])
       # Convert from [0, 255] -> [0.0, 1.0].
       images = images.astype(numpy.float32)
       images = numpy.multiply(images, 1.0 / 255.0)
     self._num_classes = labels.shape[1]
+    self._num_features = images.shape[1]
     self._images = images
     self._labels = labels
     self._epochs_completed = 0
@@ -150,6 +158,10 @@ class DataSet(object):
   @property
   def num_classes(self):
     return self._num_classes
+
+  @property
+  def num_features(self):
+    return self._num_features
 
   @property
   def epochs_completed(self):
@@ -181,6 +193,32 @@ class DataSet(object):
       assert batch_size <= self._num_examples
     end = self._index_in_epoch
     return self._images[start:end], self._labels[start:end]
+
+
+def read_mdata_sets(file_path, target_label=-1, one_hot=True):
+  class DataSets(object):
+    pass
+  data_sets = DataSets()
+
+  VALIDATION_SIZE = 5000
+
+  file_contents = sio.loadmat(file_path)
+  train_features = file_contents['train_features']
+  train_labels = file_contents['train_labels']
+  test_features = file_contents['test_features']
+  test_labels = file_contents['test_labels']
+
+  validation_features = train_features[:VALIDATION_SIZE]
+  validation_labels = train_labels[:VALIDATION_SIZE]
+  # Commented: Do not exclude validation images from training set
+  #train_features = train_features[VALIDATION_SIZE:]
+  #train_labels = train_labels[VALIDATION_SIZE:]
+
+  data_sets.train = DataSet(train_features, train_labels)
+  data_sets.validation = DataSet(validation_features, validation_labels)
+  data_sets.test = DataSet(test_features, test_labels)
+
+  return data_sets
 
 
 def read_data_sets(train_dir, target_label=-1, fake_data=False, one_hot=False):
@@ -228,8 +266,9 @@ def read_data_sets(train_dir, target_label=-1, fake_data=False, one_hot=False):
 
   validation_images = train_images[:VALIDATION_SIZE]
   validation_labels = train_labels[:VALIDATION_SIZE]
-  train_images = train_images[VALIDATION_SIZE:]
-  train_labels = train_labels[VALIDATION_SIZE:]
+  # Commented: Do not exclude validation images from training set
+  #train_images = train_images[VALIDATION_SIZE:]
+  #train_labels = train_labels[VALIDATION_SIZE:]
 
   data_sets.train = DataSet(train_images, train_labels)
   data_sets.validation = DataSet(validation_images, validation_labels)
